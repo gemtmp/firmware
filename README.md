@@ -1,6 +1,4 @@
-firmware
-========
-
+Firmwire for Arduino.
 
 Scan OnewWire bus, get temperature from DS1820 and report to serial port.
 
