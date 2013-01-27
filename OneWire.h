@@ -31,6 +31,21 @@ S& operator<<(S& s, const Addr& x)
 	return s;
 }
 
+template <uint8_t a0, uint8_t a1, uint8_t a2, uint8_t a3,
+	uint8_t a4, uint8_t a5, uint8_t a6, uint8_t a7>
+struct ConstAddr {
+	bool operator==(const Addr& x) const {
+		if (x[0] != a0) return false;
+		if (x[1] != a1) return false;
+		if (x[2] != a2) return false;
+		if (x[3] != a3) return false;
+		if (x[4] != a4) return false;
+		if (x[5] != a5) return false;
+		if (x[6] != a6) return false;
+		if (x[7] != a7) return false;
+		return true;
+	}
+};
 
 template <class _Line>
 class Wire
