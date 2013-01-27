@@ -9,6 +9,8 @@
 
 #include "OneWire.h"
 #include "serial.h"
+#include "TWI.h"
+#include "Cascade.h"
 
 template <class Led>
 struct LedOn {
@@ -21,17 +23,25 @@ typedef IO::Pb5 Led;
 typedef OneWire::Wire<IO::Pd2> Wire;
 typedef OneWire::DS1820<Wire> DS1820;
 
+uint8_t Data::data = 0;
+
 int main(void)
 {
 	sei();
+	TWI::init();
 
 	SerialPort<9600> com;
 
 	Led::SetDirWrite();
 
 	com << "Starting on 9600" << endl;
+
+	RadiatorCascade radiatorCascade;
+	BoilerCascade boilerCascade;
 	for(;;)
 	{
+		TWI::write(0x40, ~Data::data);
+
 		_delay_ms(3962); // delay to get 5 sec loop
 
 		com << "Search ";
@@ -72,11 +82,21 @@ int main(void)
 			OneWire::Temperature t = DS1820::read(addrs[i]);
 			Led::Clear();
 
-			if (t.isValid())
+			if (t.isValid()) {
+				radiatorCascade.processSensor(addrs[i], t.get());
+				boilerCascade.processSensor(addrs[i], t.get());
+
 				com << "Temp: " << addrs[i] << '=' << t << endl;
-			else
+			} else {
 				com << "Fail " << addrs[i] << endl;
+			}
 		}
+		if (!radiatorCascade.step())
+			com << "Radiator Cascade fail" << endl;
+		com << "Radiator " << radiatorCascade << endl;
+		if (!boilerCascade.step())
+			com << "Boiler Cascade fail" << endl;
+		com << "Boiler " << boilerCascade << endl;
 	}
 }
 
