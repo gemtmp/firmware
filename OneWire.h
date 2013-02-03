@@ -215,17 +215,19 @@ public:
     }
 };
 
-struct Temperature
+class Temperature
 {
-	int8_t num;
-	uint8_t frac;
 public:
-	static const int8_t Error = -128;
 
-	Temperature() : num(Error), frac(0) {}
-	Temperature(int8_t v, uint8_t frac) : num(v), frac(frac) {}
-	int8_t get() { return num; }
-	bool isValid() { return num != Error; }
+	Temperature() : value(Error) {}
+	Temperature(uint8_t v, uint8_t frac) : value(v*256 + frac) {}
+	int16_t get() const { return value; }
+	bool isValid() { return value != Error; }
+
+	constexpr static inline int16_t toInt(int8_t v) { return v*16; }
+	static const int16_t Error = -127*16;
+private:
+	int16_t value;
 };
 
 template <class S>
@@ -233,7 +235,12 @@ S& operator<<(S& s, const Temperature& x)
 {
 	static const char fracDigit[16] = {'0', '1', '1', '2', '3', '3', '4', '4',
 									   '5', '6', '6', '7', '8', '8', '9', '9' };
-	s << (x.num) << '.' << fracDigit[x.frac >> 4];
+	uint16_t v = x.get();
+	if (v < 0) {
+		s << '-';
+		v = -v;
+	}
+	s << (v >> 4) << '.' << fracDigit[v & 15];
 	return s;
 }
 
@@ -281,8 +288,8 @@ private:
 				return Temperature();
 
 			if (ds18s20)
-				return Temperature((h & 0x80) | (l >> 1) , l << 7 );
-			return Temperature((h << 4) | (l >> 4), l << 4);
+				return Temperature((h & 0x80) | (l >> 5) , l << 3 );
+			return Temperature(h, l);
 		}
 	};
 	static RawTemperature readRaw() {
