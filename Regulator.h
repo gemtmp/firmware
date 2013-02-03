@@ -8,52 +8,39 @@
 #ifndef REGULATOR_H_
 #define REGULATOR_H_
 
-template <typename D, int Up, int Down>
-class Action {
-public:
-	static void stop() {
-		D::data &= ~((1 << Up) | (1 << Down));
-	}
-	static void up() {
-		D::data &= ~(1 << Down);
-		D::data |= (1 << Up);
-	}
-	static void down() {
-		D::data |= (1 << Down);
-		D::data &= ~(1 << Up);
-	}
-};
-
-template <class Action>
+typedef int16_t output_t;
+template <typename InputType = int16_t, output_t Max = 32000, output_t Min = -32000>
 class Regul {
 public:
-	typedef Action action_t;
+	typedef InputType input_t;
 
-	Regul(int8_t target)
-		: target(target), lastAction("") {}
-
-	void step(int8_t current) {
-		int8_t err = current - target;
-
-		if (err == 0) {
-			Action::stop();
-			lastAction = "stop";
-		} else if (err < 0) {
-			Action::up();
-			lastAction = "up";
-		} else {
-			Action::down();
-			lastAction = "down";
-		}
+	Regul(input_t target, uint8_t p = 16)
+		: target(target), p(p), output(0) {}
+	output_t step(input_t current) {
+		input_t err = current - target;
+		output = err * p; // TODO check overflow
+		if (output > Max)
+			output = Max;
+		else if (output < Min)
+			output = Min;
+		return output;
 	}
-	void setTarget(uint8_t t) {
+	void setTarget(input_t t) {
 		target = t;
 	}
-	int8_t getTarget() const { return target; }
-	const char* getLastAction() const { return lastAction; }
+	void reset() { output = 0; }
+	input_t getTarget() const { return target; }
+	output_t getOutput() const { return output; }
+	template <class S>
+	S& log(S& s) const {
+		s << "Target: " << getTarget() << ", Output: " << getOutput();
+		return s;
+	}
+
 private:
-	int8_t target;
-	const char *lastAction;
+	input_t target;
+	uint8_t p;
+	output_t output;
 };
 
 
