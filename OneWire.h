@@ -235,7 +235,7 @@ S& operator<<(S& s, const Temperature& x)
 {
 	static const char fracDigit[16] = {'0', '1', '1', '2', '3', '3', '4', '4',
 									   '5', '6', '6', '7', '8', '8', '9', '9' };
-	uint16_t v = x.get();
+	int16_t v = x.get();
 	if (v < 0) {
 		s << '-';
 		v = -v;
