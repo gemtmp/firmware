@@ -87,16 +87,23 @@ class RadiatorCascade: public RadiatorCascadeParent {
 public:
 	typedef RadiatorCascadeParent parent_t;
 	using parent_t::input_t;
-	static const input_t Min = OneWire::Temperature::toInt(20);
+	static const input_t Min = OneWire::Temperature::toInt(22);
 	static const input_t Max = OneWire::Temperature::toInt(70);
-	static const input_t Zero = OneWire::Temperature::toInt(32);
+	static const input_t Zero = OneWire::Temperature::toInt(38);
+	static const input_t k = 2;
+	// target temperature is Zero - outdoor / k, limited by Min and Max
+	static const input_t Fail = OneWire::Temperature::toInt(85);
 	RadiatorCascade() :  parent_t(Zero) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (radiatorSensor == addr) {
+			if (value == Fail && current < 60) {
+				// problem with power level on ds1820, skip value
+				return;
+			}
 			failCount = 0;
 			current = value;
 		} else if (outdoorSensor == addr) {
-			int16_t target = Zero - value;
+			input_t target = Zero - value / k;
 			if (target < Min) target = Min;
 			if (target > Max) target = Max;
 			regul.setTarget(target);
@@ -112,7 +119,7 @@ class BoilerCascade: public BoilerCascadeParent {
 public:
 	typedef BoilerCascadeParent parent_t;
 	using parent_t::input_t;
-	const static input_t Target = OneWire::Temperature::toInt(75);
+	const static input_t Target = OneWire::Temperature::toInt(50);
 	const static input_t MaxDelta = OneWire::Temperature::toInt(25);
 	BoilerCascade() :  parent_t(Target), inTemp(0), outTemp(0) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
@@ -124,17 +131,17 @@ public:
 		}
 	}
 	bool step() {
-		if (outTemp - inTemp > MaxDelta) {
-			// input too cold
-			regul.setTarget(min(outTemp - MaxDelta, Target));
-			regul.reset();
-			current = inTemp;
-		} else {
-			regul.setTarget(Target);
-			current = max(outTemp, inTemp);
+		if (inTemp + OneWire::Temperature::toInt(64) < outTemp) {
+			// in/out temperature delta is too big, something wrong. Use only out temp.
+			inTemp = outTemp;
+			failCount++;
 		}
+		regul.setTarget(max(outTemp - MaxDelta, Target));
+		current = inTemp;
 
-		return parent_t::step();
+		bool ret = parent_t::step();
+		inTemp = OneWire::Temperature::toInt(-125);
+		return ret;
 	}
 private:
 	OneWire::ConstAddr<0x10, 0x3F, 0x9D, 0x0F, 0x02, 0x08, 0x00, 0xCA> boilerOutSensor;
