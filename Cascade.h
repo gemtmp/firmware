@@ -91,9 +91,13 @@ public:
 	static const input_t Max = OneWire::Temperature::toInt(70);
 	static const input_t Zero = OneWire::Temperature::toInt(38);
 	static const input_t k = 2;
-	// target temperature is Zero - outdoor / k, limited by Min and Max
+	static const input_t IndoorTarget = OneWire::Temperature::toInt(21);
+	// target temperature is Zero - outdoor / k + (IndoorTarget - indoor) * 5,
+	// limited by Min and Max
+
 	static const input_t Fail = OneWire::Temperature::toInt(85);
-	RadiatorCascade() :  parent_t(Zero) {}
+
+	RadiatorCascade() :  parent_t(Zero), indoor(IndoorTarget) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (radiatorSensor == addr) {
 			if (value == Fail && current < 60) {
@@ -102,16 +106,20 @@ public:
 			}
 			failCount = 0;
 			current = value;
+		} else if (indoorSensor == addr) {
+			indoor = value;
 		} else if (outdoorSensor == addr) {
-			input_t target = Zero - value / k;
+			input_t target = Zero - value / k + (IndoorTarget - indoor) * 5;
 			if (target < Min) target = Min;
 			if (target > Max) target = Max;
 			regul.setTarget(target);
 		}
 	}
 private:
+	input_t indoor;
 	OneWire::ConstAddr<0x28, 0xD9, 0xF8, 0xD5, 0x03, 0x00, 0x00, 0xB0> radiatorSensor;
 	OneWire::ConstAddr<0x28, 0x0A, 0xFB, 0xD5, 0x03, 0x00, 0x00, 0x63> outdoorSensor;
+	OneWire::ConstAddr<0x28, 0xC3, 0xE0, 0xD5, 0x03, 0x00, 0x00, 0x66> indoorSensor;
 };
 
 typedef Cascade<Regul<int16_t, 3200, -3200>, Action<Data, 4, 5>> BoilerCascadeParent;
