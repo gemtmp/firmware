@@ -12,6 +12,7 @@
 class Clock {
 public:
 	typedef uint16_t clock_t;
+	typedef void (*func)();
 
 	static void start();
 	static clock_t millis();
