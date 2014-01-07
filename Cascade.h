@@ -13,7 +13,7 @@
 #include "Regulator.h"
 #include "OneWire.h"
 
-template <typename D, int Up, int Down>
+template <typename D, int Up, int Down = 0>
 class Action {
 public:
 	static void stop() {
@@ -26,6 +26,20 @@ public:
 	static void down() {
 		D::data |= (1 << Down);
 		D::data &= ~(1 << Up);
+	}
+};
+
+template <typename D, int On>
+class Action<D, On, 0> {
+public:
+	static void stop() {
+		D::data &= ~(1 << On);
+	}
+	static void start() {
+		D::data |= (1 << On);
+	}
+	static bool status() {
+		return (D::data & (1 << On)) != 0;
 	}
 };
 
@@ -76,8 +90,8 @@ protected:
 	R regul;
 };
 
-template <class S, class R, class A>
-S& operator<<(S& s, const Cascade<R, A>& x)
+template <class S, class T>
+S& operator<<(S& s, const T& x)
 {
 	return x.log(s);
 }
@@ -131,7 +145,7 @@ public:
 	const static input_t MaxOut = OneWire::Temperature::toInt(95);
 	const static input_t MinOut = OneWire::Temperature::toInt(70);
 	const static input_t MaxDelta = OneWire::Temperature::toInt(35);
-	const static input_t MinDelta = OneWire::Temperature::toInt(5);
+	const static input_t MinDelta = OneWire::Temperature::toInt(7);
 	BoilerCascade() :  parent_t(Target), inTemp(0), outTemp(0), outAvg(0) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (boilerInSensor == addr) {
@@ -149,22 +163,31 @@ public:
 			failCount++;
 		}
 		input_t deltaTarget;
-		if (outTemp < MinOut        // boiler is not too hot
+		if ((outTemp < MinOut        // boiler is not too hot
 				&& failCount == 0   // no errors
 				&& outTemp <= outAvg // boiler is cooling
 				&& inTemp + MinDelta > outTemp // boiler does not produce heat
-				) {
+				)
+			) {
 			// Boiler stops, disconnect it from pipes
 			deltaTarget = max(outTemp - MinDelta, inTemp + MinDelta);
+			pump.stop();
 		} else {
-			deltaTarget = outTemp - MaxDelta;
+			deltaTarget = max(outTemp - MaxDelta, Target);
+			pump.start();
 		}
-		regul.setTarget(max(deltaTarget, Target));
+		regul.setTarget(deltaTarget);
 		current = inTemp;
 
 		bool ret = parent_t::step();
 		inTemp = OneWire::Temperature::toInt(-125);
 		return ret;
+	}
+	template <class S>
+	S& log(S& s) const {
+		parent_t::log(s);
+		s << "\nTemp: pump=" << (pump.status() ? "1":"0");
+		return s;
 	}
 private:
 	OneWire::ConstAddr<0x10, 0x3F, 0x9D, 0x0F, 0x02, 0x08, 0x00, 0xCA> boilerOutSensor;
@@ -172,6 +195,7 @@ private:
 	input_t inTemp;
 	input_t outTemp;
 	input_t outAvg;
+	Action<Data, 3> pump;
 };
 
 #endif /* CASCADE_H_ */
