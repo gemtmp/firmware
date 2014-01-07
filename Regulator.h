@@ -19,6 +19,7 @@ public:
 		  previos(0), integral(0), dValue(0), output(0) {}
 	output_t step(input_t current) {
 		input_t err = current - target;
+		dValue = 0;
 		if (err > Large)
 			return output=Max;
 		if (err < -Large)
