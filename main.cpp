@@ -24,7 +24,7 @@ typedef IO::Pb5 Led;
 typedef OneWire::Wire<IO::Pd2> Wire;
 typedef OneWire::DS1820<Wire> DS1820;
 
-const static int cycleTime = 5000; // 5 sec per loop
+const static unsigned int cycleTime = 5000; // 5 sec per loop
 
 uint8_t Data::data = 0;
 
@@ -78,6 +78,8 @@ int main(void)
 			LedOn<Led> l;
 			Wire::skip();
 			DS1820::convert();
+			com << "Radiator " << radiatorCascade << endl;
+			com << "Boiler   " << boilerCascade << endl;
 			DS1820::wait();
 		}
 
@@ -98,18 +100,15 @@ int main(void)
 		}
 		if (!radiatorCascade.step())
 			com << "Radiator Cascade fail" << endl;
-		com << "Radiator " << radiatorCascade << endl;
 		if (!boilerCascade.step())
 			com << "Boiler Cascade fail" << endl;
-		com << "Boiler " << boilerCascade << endl;
 
-		Clock::clock_t regStart = Clock::millis();
-		com << "reg-start= " << regStart - startTime << endl;
+		//Clock::clock_t regStart = Clock::millis();
 		int16_t rDelay = radiatorCascade.getAbsOutput();
 		int16_t bDelay = boilerCascade.getAbsOutput();
 
+		TWI::write(0x40, ~Data::data);
 		if (rDelay > 0 || bDelay > 0) {
-			TWI::write(0x40, ~Data::data);
 			if (rDelay < bDelay) {
 				_delay_ms(rDelay);
 				RadiatorCascade::action_t::stop();
@@ -127,7 +126,9 @@ int main(void)
 			}
 		}
 		Clock::clock_t regStop = Clock::millis();
-		_delay_ms(cycleTime - (regStop - startTime));
+		com << "cycle time " << regStop - startTime << endl;
+		if (cycleTime > (regStop - startTime))
+			_delay_ms(cycleTime - (regStop - startTime));
 	}
 }
 
