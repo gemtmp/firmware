@@ -14,9 +14,9 @@ class Regul {
 public:
 	typedef InputType input_t;
 
-	Regul(input_t target, uint8_t p = 8, uint8_t i = 0, uint8_t d = 48)
-		: target(target), previos(0), integral(0), dValue(0)
-			, p(p), i(i), d(d), output(0) {}
+	Regul(input_t target, uint8_t p = 7, uint8_t i = 0, uint8_t d = 50)
+		: target(target), p(p), i(i), d(d),
+		  previos(0), integral(0), dValue(0), output(0) {}
 	output_t step(input_t current) {
 		input_t err = current - target;
 		if (err > Large)
@@ -25,10 +25,16 @@ public:
 			return output=Min;
 		integral += (i * err)/16;
 		integral = limit<8>(integral);
-		dValue = (d*(err - previos))/2;
+		dValue = d*(err - previos);
+		previos = err;
+
+		if (dValue > Max / 4)
+			return output=Max;
+		if (dValue < Min / 4)
+			return output=Min;
+
 		output = err * p + integral + dValue; // TODO check overflow
 		output = limit(output);
-		previos = err;
 		return output;
 	}
 	void setTarget(input_t t) {
@@ -40,8 +46,9 @@ public:
 	template <class S>
 	S& log(S& s) const {
 		s << "Target: " << getTarget() << ", Output: " << getOutput()
-				<< ", i= " << integral
-				<< ", d= " << dValue;
+				<< ", p: " << previos * p
+				<< ", i: " << integral
+				<< ", d: " << dValue;
 		return s;
 	}
 	template <uint8_t div =1>
@@ -55,12 +62,12 @@ public:
 
 private:
 	input_t target;
-	input_t previos;
-	input_t integral;
-	input_t dValue;
 	uint8_t p;
 	uint8_t i;
 	uint8_t d;
+	input_t previos;
+	output_t integral;
+	output_t dValue;
 	output_t output;
 };
 
