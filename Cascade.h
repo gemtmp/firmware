@@ -82,17 +82,17 @@ S& operator<<(S& s, const Cascade<R, A>& x)
 	return x.log(s);
 }
 
-typedef Cascade<Regul<int16_t, 3200, -3200>, Action<Data, 6, 7>> RadiatorCascadeParent;
+typedef Cascade<Regul<int16_t, 4000, -4000>, Action<Data, 6, 7>> RadiatorCascadeParent;
 class RadiatorCascade: public RadiatorCascadeParent {
 public:
 	typedef RadiatorCascadeParent parent_t;
 	using parent_t::input_t;
 	static const input_t Min = OneWire::Temperature::toInt(22);
 	static const input_t Max = OneWire::Temperature::toInt(70);
-	static const input_t Zero = OneWire::Temperature::toInt(38);
+	static const input_t Zero = OneWire::Temperature::toInt(40);
 	static const input_t k = 2;
 	static const input_t IndoorTarget = OneWire::Temperature::toInt(21);
-	// target temperature is Zero - outdoor / k + (IndoorTarget - indoor) * 5,
+	// target temperature is (Zero - outdoor) / k + (IndoorTarget - indoor) * 4,
 	// limited by Min and Max
 
 	static const input_t Fail = OneWire::Temperature::toInt(85);
@@ -100,7 +100,7 @@ public:
 	RadiatorCascade() :  parent_t(Zero), indoor(IndoorTarget) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (radiatorSensor == addr) {
-			if (value == Fail && current < 60) {
+			if (value == Fail && current < OneWire::Temperature::toInt(60)) {
 				// problem with power level on ds1820, skip value
 				return;
 			}
@@ -109,7 +109,7 @@ public:
 		} else if (indoorSensor == addr) {
 			indoor = value;
 		} else if (outdoorSensor == addr) {
-			input_t target = Zero - value / k + (IndoorTarget - indoor) * 5;
+			input_t target = Zero - value / k + (IndoorTarget - indoor) * 8;
 			if (target < Min) target = Min;
 			if (target > Max) target = Max;
 			regul.setTarget(target);
@@ -122,20 +122,24 @@ private:
 	OneWire::ConstAddr<0x28, 0xC3, 0xE0, 0xD5, 0x03, 0x00, 0x00, 0x66> indoorSensor;
 };
 
-typedef Cascade<Regul<int16_t, 3200, -3200>, Action<Data, 4, 5>> BoilerCascadeParent;
+typedef Cascade<Regul<int16_t, 4000, -4000>, Action<Data, 4, 5>> BoilerCascadeParent;
 class BoilerCascade: public BoilerCascadeParent {
 public:
 	typedef BoilerCascadeParent parent_t;
 	using parent_t::input_t;
 	const static input_t Target = OneWire::Temperature::toInt(50);
-	const static input_t MaxDelta = OneWire::Temperature::toInt(25);
-	BoilerCascade() :  parent_t(Target), inTemp(0), outTemp(0) {}
+	const static input_t MaxOut = OneWire::Temperature::toInt(95);
+	const static input_t MinOut = OneWire::Temperature::toInt(70);
+	const static input_t MaxDelta = OneWire::Temperature::toInt(35);
+	const static input_t MinDelta = OneWire::Temperature::toInt(5);
+	BoilerCascade() :  parent_t(Target), inTemp(0), outTemp(0), outAvg(0) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (boilerInSensor == addr) {
 			inTemp = value;
 		} else if (boilerOutSensor == addr) {
 			failCount = 0;
 			outTemp = value;
+			outAvg = (outAvg + outTemp) / 2;
 		}
 	}
 	bool step() {
@@ -144,7 +148,18 @@ public:
 			inTemp = outTemp;
 			failCount++;
 		}
-		regul.setTarget(max(outTemp - MaxDelta, Target));
+		input_t deltaTarget;
+		if (outTemp < MinOut        // boiler is not too hot
+				&& failCount == 0   // no errors
+				&& outTemp <= outAvg // boiler is cooling
+				&& inTemp + MinDelta > outTemp // boiler does not produce heat
+				) {
+			// Boiler stops, disconnect it from pipes
+			deltaTarget = max(outTemp - MinDelta, inTemp + MinDelta);
+		} else {
+			deltaTarget = outTemp - MaxDelta;
+		}
+		regul.setTarget(max(deltaTarget, Target));
 		current = inTemp;
 
 		bool ret = parent_t::step();
@@ -156,6 +171,7 @@ private:
 	OneWire::ConstAddr<0x28, 0x50, 0x05, 0xD6, 0x03, 0x00, 0x00, 0x0E> boilerInSensor;
 	input_t inTemp;
 	input_t outTemp;
+	input_t outAvg;
 };
 
 #endif /* CASCADE_H_ */
