@@ -44,13 +44,14 @@ int main(void)
 
 	RadiatorCascade radiatorCascade;
 	BoilerCascade boilerCascade;
+	uint16_t fails = 0;
 	for(;;)
 	{
 
 		Clock::clock_t startTime = Clock::millis();
 
 		com << "Search ";
-		const uint8_t MaxAddrs = 8;
+		const uint8_t MaxAddrs = 16;
 		OneWire::Addr addrs[MaxAddrs];
 		uint8_t count = 0;
 		OneWire::Search<Wire> search;
@@ -62,7 +63,8 @@ int main(void)
 		}
 		if (search.isFail())
 		{
-			com << "failed on " << count << endl;
+			com << "failed on " << count << ": " << search.error() <<  endl;
+			fails++;
 			continue;
 		} else {
 			com << count << endl;
@@ -71,6 +73,7 @@ int main(void)
 		if (!Wire::reset())
 		{
 			com << "Reset failed" << endl;
+			fails++;
 			continue;
 		}
 
@@ -96,8 +99,12 @@ int main(void)
 				com << "Temp: " << addrs[i] << '=' << t << endl;
 			} else {
 				com << "Fail " << addrs[i] << endl;
+				fails++;
 			}
 		}
+
+		com << "Temp: fails=" << fails << endl;
+
 		if (!radiatorCascade.step())
 			com << "Radiator Cascade fail" << endl;
 		if (!boilerCascade.step())
@@ -129,6 +136,7 @@ int main(void)
 		com << "cycle time " << regStop - startTime << endl;
 		if (cycleTime > (regStop - startTime))
 			_delay_ms(cycleTime - (regStop - startTime));
+		fails = 0;
 	}
 }
 

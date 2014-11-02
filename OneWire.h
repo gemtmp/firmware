@@ -161,18 +161,24 @@ class Wire
 template <class Wire, typename Counter = uint8_t>
 class Search
 {
-	bool fail;
-	Counter visited;
 public:
-	bool isDone() { return visited == 0 || fail; }
-	bool isFail() { return fail; }
-	Search() : fail(true), visited(0) { }
+	enum ErrCode {
+		OK,
+		RESET,
+		BUS0,
+		BUS1,
+		CRC
+	};
+	bool isDone() { return visited == 0 || isFail(); }
+	bool isFail() { return fail != OK; }
+	ErrCode errCode() { return fail; }
+	Search() : fail(OK), visited(0) { }
     Addr operator()()
     {
     	Addr addr;
     	if (!Wire::reset())
     	{
-    		fail = true;
+    		fail = RESET;
     		return addr;
     	}
     	Wire::write(0xF0);
@@ -189,7 +195,7 @@ public:
 				if (bit && notBit)
 				{
 					// bus failure
-					fail = true;
+					fail = bit ? BUS1 : BUS0;
 					return addr;
 				}
 				if (!bit && !notBit)
@@ -208,11 +214,37 @@ public:
     		if (bytePos != 7)
     			crc = Wire::crc8(addr[bytePos], crc);
     	}
-    	fail = addr[7] != crc;
+    	if (addr[7] != crc)
+    		fail = CRC;
     	visited = next;
 
     	return addr;
     }
+    const char* error()
+    {
+    	switch (fail) {
+    	case OK:
+    		return "OK";
+    		break;
+    	case RESET:
+    		return "Reset";
+    		break;
+    	case BUS0:
+    		return "Bus0";
+    		break;
+    	case BUS1:
+    		return "Bus1";
+    		break;
+    	case CRC:
+    		return "CRC";
+    		break;
+    	}
+    	return "Unknown";
+    }
+
+private:
+	ErrCode fail;
+	Counter visited;
 };
 
 class Temperature

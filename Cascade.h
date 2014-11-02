@@ -90,7 +90,7 @@ protected:
 	R regul;
 };
 
-template <class S, class T>
+template <class S, class T, typename T::input_t dummy = 0>
 S& operator<<(S& s, const T& x)
 {
 	return x.log(s);
