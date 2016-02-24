@@ -14,7 +14,7 @@ class Regul {
 public:
 	typedef InputType input_t;
 
-	Regul(input_t target, uint8_t p = 7, uint8_t i = 0, uint8_t d = 50)
+	Regul(input_t target, uint8_t p = 6, uint8_t i = 0, uint8_t d = 55)
 		: target(target), p(p), i(i), d(d),
 		  previos(0), integral(0), dValue(0), output(0) {}
 	output_t step(input_t current) {

@@ -101,20 +101,20 @@ class RadiatorCascade: public RadiatorCascadeParent {
 public:
 	typedef RadiatorCascadeParent parent_t;
 	using parent_t::input_t;
-	static const input_t Min = OneWire::Temperature::toInt(22);
-	static const input_t Max = OneWire::Temperature::toInt(70);
-	static const input_t Zero = OneWire::Temperature::toInt(40);
+	static const input_t Min = Temperature::toInt(22);
+	static const input_t Max = Temperature::toInt(70);
+	static const input_t Zero = Temperature::toInt(50);
 	static const input_t k = 2;
-	static const input_t IndoorTarget = OneWire::Temperature::toInt(21);
+	static const input_t IndoorTarget = Temperature::toInt(22);
 	// target temperature is (Zero - outdoor) / k + (IndoorTarget - indoor) * 4,
 	// limited by Min and Max
 
-	static const input_t Fail = OneWire::Temperature::toInt(85);
+	static const input_t Fail = Temperature::toInt(85);
 
 	RadiatorCascade() :  parent_t(Zero), indoor(IndoorTarget) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (radiatorSensor == addr) {
-			if (value == Fail && current < OneWire::Temperature::toInt(60)) {
+			if (value == Fail && current < Temperature::toInt(60)) {
 				// problem with power level on ds1820, skip value
 				return;
 			}
@@ -141,11 +141,11 @@ class BoilerCascade: public BoilerCascadeParent {
 public:
 	typedef BoilerCascadeParent parent_t;
 	using parent_t::input_t;
-	const static input_t Target = OneWire::Temperature::toInt(50);
-	const static input_t MaxOut = OneWire::Temperature::toInt(95);
-	const static input_t MinOut = OneWire::Temperature::toInt(70);
-	const static input_t MaxDelta = OneWire::Temperature::toInt(35);
-	const static input_t MinDelta = OneWire::Temperature::toInt(7);
+	const static input_t Target = Temperature::toInt(50);
+	const static input_t MaxOut = Temperature::toInt(95);
+	const static input_t MinOut = Temperature::toInt(70);
+	const static input_t MaxDelta = Temperature::toInt(35);
+	const static input_t MinDelta = Temperature::toInt(7);
 	BoilerCascade() :  parent_t(Target), inTemp(0), outTemp(0), outAvg(0) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (boilerInSensor == addr) {
@@ -153,11 +153,11 @@ public:
 		} else if (boilerOutSensor == addr) {
 			failCount = 0;
 			outTemp = value;
-			outAvg = (outAvg + outTemp) / 2;
+			outAvg = (outAvg + outTemp + 1) / 2;
 		}
 	}
 	bool step() {
-		if (inTemp + OneWire::Temperature::toInt(64) < outTemp) {
+		if (inTemp + Temperature::toInt(64) < outTemp) {
 			// in/out temperature delta is too big, something wrong. Use only out temp.
 			inTemp = outTemp;
 			failCount++;
@@ -180,7 +180,7 @@ public:
 		current = inTemp;
 
 		bool ret = parent_t::step();
-		inTemp = OneWire::Temperature::toInt(-125);
+		inTemp = Temperature::toInt(-125);
 		return ret;
 	}
 	template <class S>

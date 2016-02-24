@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <util/delay.h>
 
+#include "temperature.h"
 
 namespace OneWire
 {
@@ -71,16 +72,16 @@ class Wire
     {
     	Line::Clear();
     	Line::SetDirWrite();
-    	_delay_us(2);
+    	_delay_us(3);
     	if(bit)
     	{
     		Line::SetDirRead();
     	}
-    	_delay_us(13);
+    	_delay_us(8);
     	bit = Line::IsSet();
-    	_delay_us(60-15);
+    	_delay_us(60 -11);
     	Line::SetDirRead();
-    	_delay_us(1);
+    	_delay_us(10);
     	return bit;
     }
 
@@ -172,7 +173,7 @@ public:
 	bool isDone() { return visited == 0 || isFail(); }
 	bool isFail() { return fail != OK; }
 	ErrCode errCode() { return fail; }
-	Search() : fail(OK), visited(0) { }
+	Search() : fail(OK), visited(0), failByte(0), failBit(0) { }
     Addr operator()()
     {
     	Addr addr;
@@ -196,6 +197,8 @@ public:
 				{
 					// bus failure
 					fail = bit ? BUS1 : BUS0;
+					failByte = bytePos;
+					failBit = curBit;
 					return addr;
 				}
 				if (!bit && !notBit)
@@ -242,39 +245,20 @@ public:
     	return "Unknown";
     }
 
+    template <class S>
+    S& errorDetail(S& s) {
+    	if (fail == BUS0 || fail == BUS1)
+    		s << " " << failByte << ":" << failBit;
+    	return s;
+    }
+
 private:
 	ErrCode fail;
 	Counter visited;
+
+	uint8_t failByte;
+	uint8_t failBit;
 };
-
-class Temperature
-{
-public:
-
-	Temperature() : value(Error) {}
-	Temperature(uint8_t v, uint8_t frac) : value(v*256 + frac) {}
-	int16_t get() const { return value; }
-	bool isValid() { return value != Error; }
-
-	constexpr static inline int16_t toInt(int8_t v) { return v*16; }
-	static const int16_t Error = -127*16;
-private:
-	int16_t value;
-};
-
-template <class S>
-S& operator<<(S& s, const Temperature& x)
-{
-	static const char fracDigit[16] = {'0', '1', '1', '2', '3', '3', '4', '4',
-									   '5', '6', '6', '7', '8', '8', '9', '9' };
-	int16_t v = x.get();
-	if (v < 0) {
-		s << '-';
-		v = -v;
-	}
-	s << (v >> 4) << '.' << fracDigit[v & 15];
-	return s;
-}
 
 template <class Wire, bool parasitePower = false>
 class DS1820
@@ -306,7 +290,7 @@ public:
 			if (!Wire::reset())
 				continue;
 			Wire::select(addr);
-			OneWire::Temperature t = readRaw().toTemperature(addr[0] == 0x10);
+			Temperature t = readRaw().toTemperature(addr[0] == 0x10);
 			if (t.isValid())
 				return t;
 		}
