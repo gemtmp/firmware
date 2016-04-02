@@ -121,7 +121,13 @@ int main(void)
 
 		{
 			Temperature t = max6675::temperature();
-			com << "Temp: TC=" << t << endl;
+			if (t.isValid()) {
+				boilerCascade.processTC(t.get());
+				com << "Temp: TC=" << t << endl;
+			} else {
+				com << "Fail  TC" << endl;
+				fails++;
+			}
 		}
 		com << "Temp: fails=" << fails << endl;
 

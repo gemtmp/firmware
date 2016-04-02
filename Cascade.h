@@ -141,12 +141,13 @@ class BoilerCascade: public BoilerCascadeParent {
 public:
 	typedef BoilerCascadeParent parent_t;
 	using parent_t::input_t;
-	const static input_t Target = Temperature::toInt(50);
+	const static input_t Target = Temperature::toInt(55);
 	const static input_t MaxOut = Temperature::toInt(95);
-	const static input_t MinOut = Temperature::toInt(70);
+	const static input_t MinOut = Temperature::toInt(60);
 	const static input_t MaxDelta = Temperature::toInt(35);
-	const static input_t MinDelta = Temperature::toInt(7);
-	BoilerCascade() :  parent_t(Target), inTemp(0), outTemp(0), outAvg(0) {}
+	const static input_t MinDelta = Temperature::toInt(4);
+	const static input_t TCHigh = Temperature::toInt(100);
+	BoilerCascade() :  parent_t(Target), inTemp(0), outTemp(0), outAvg(0), tc(0) {}
 	void processSensor(const OneWire::Addr& addr, input_t value) {
 		if (boilerInSensor == addr) {
 			inTemp = value;
@@ -156,6 +157,9 @@ public:
 			outAvg = (outAvg + outTemp + 1) / 2;
 		}
 	}
+	void processTC(input_t value) {
+		tc = value;
+	}
 	bool step() {
 		if (inTemp + Temperature::toInt(64) < outTemp) {
 			// in/out temperature delta is too big, something wrong. Use only out temp.
@@ -163,8 +167,9 @@ public:
 			failCount++;
 		}
 		input_t deltaTarget;
-		if ((outTemp < MinOut        // boiler is not too hot
-				&& failCount == 0   // no errors
+		if ((tc < TCHigh
+				&& outTemp < MinOut  // boiler is not too hot
+				&& failCount == 0    // no errors
 				&& outTemp <= outAvg // boiler is cooling
 				&& inTemp + MinDelta > outTemp // boiler does not produce heat
 				)
@@ -181,6 +186,7 @@ public:
 
 		bool ret = parent_t::step();
 		inTemp = Temperature::toInt(-125);
+		tc = 0;
 		return ret;
 	}
 	template <class S>
@@ -195,6 +201,7 @@ private:
 	input_t inTemp;
 	input_t outTemp;
 	input_t outAvg;
+	input_t tc; // termocouple
 	Action<Data, 3> pump;
 };
 
