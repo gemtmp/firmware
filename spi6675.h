@@ -70,7 +70,7 @@ public:
   {
 	  Spi::enable();
 	  _delay_ms(1);
-	  uint16_t t = Spi::read();
+	  int16_t t = Spi::read();
 	  t <<= 8;
 	  t |= Spi::read();
 	  Spi::disable();
@@ -78,7 +78,8 @@ public:
 	  if (t & 0x4)
 		  return Temperature();
 	  t >>= 3;
-	  return Temperature(t >> 6, t & ((1<<6)-1));
+	  t <<= 2;
+	  return Temperature(t);
   }
 };
 

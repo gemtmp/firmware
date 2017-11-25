@@ -6,6 +6,7 @@
 #include <avr/interrupt.h>
 
 #include <iopins.h>
+using namespace Mcucpp;
 
 #include "OneWire.h"
 #include "serial.h"
@@ -16,7 +17,7 @@
 
 template <class Led>
 struct LedOn {
-	LedOn() { Led::Set(); }
+	LedOn(bool v = true) { Led::Set(v); }
 	~LedOn() { Led::Clear(); }
 };
 
@@ -28,10 +29,17 @@ typedef OneWire::DS1820<Wire> DS1820;
 typedef IO::Pd3 MISO;
 typedef IO::Pd4 CS;
 typedef IO::Pd5 CLK;
+typedef IO::Pd6 BOILER_ON;
 
 typedef SPI::max6675<SPI::SPI<CLK, CS, MISO> > max6675;
 
 const static unsigned int cycleTime = 5000; // 5 sec per loop
+const static uint8_t bolierDelay = 600/(cycleTime/1000); // 10 minute
+const static uint8_t bolierDelayOff = 60*15/(cycleTime/1000); // 30 minute
+const static uint8_t bolierRetryDelay = 900/(cycleTime/1000); // 15 minute
+const static int16_t MinFeedTemp = Temperature::toInt(35);
+
+OneWire::ConstAddr<0x10, 0xA1, 0x7B, 0x0F, 0x02, 0x08, 0x00, 0x2E> heatOuputSensor;
 
 uint8_t Data::data = 0;
 
@@ -55,6 +63,10 @@ int main(void)
 
 	Led::SetDirWrite();
 
+	BOILER_ON::Clear();
+	BOILER_ON::SetDirWrite();
+	BOILER_ON::Clear();
+
 	com << "Starting on 9600" << endl;
 
 	RadiatorCascade radiatorCascade;
@@ -62,9 +74,14 @@ int main(void)
 	const uint8_t MaxAddrs = 16;
 	OneWire::Addr addrs[MaxAddrs];
 	uint16_t fails = 0;
+	uint8_t boilerCircles = bolierDelay;
+	uint8_t boilerCirclesOn = 0;
+	bool boilerOn = false;
+	bool boilerStatus = false;
+	bool boilerRealStatus = false;
+
 	for(;;)
 	{
-
 		Clock::clock_t startTime = Clock::millis();
 
 		com << "Search ";
@@ -102,6 +119,7 @@ int main(void)
 			DS1820::wait();
 		}
 
+		Temperature heatOutput;
 		for (int i = 0; i < count; ++i)
 		{
 			Led::Set();
@@ -109,6 +127,8 @@ int main(void)
 			Led::Clear();
 
 			if (t.isValid()) {
+				if (heatOuputSensor == addrs[i])
+					heatOutput = t;
 				radiatorCascade.processSensor(addrs[i], t.get());
 				boilerCascade.processSensor(addrs[i], t.get());
 
@@ -119,22 +139,45 @@ int main(void)
 			}
 		}
 
-		{
-			Temperature t = max6675::temperature();
-			if (t.isValid()) {
-				boilerCascade.processTC(t.get());
-				com << "Temp: TC=" << t << endl;
-			} else {
-				com << "Fail  TC" << endl;
-				fails++;
-			}
+		Temperature tc = max6675::temperature();
+		if (tc.isValid()) {
+			boilerCascade.processTC(tc.get());
+			com << "Temp: TC=" << tc << endl;
+		} else {
+			com << "Fail  TC" << endl;
+			fails++;
 		}
+
 		com << "Temp: fails=" << fails << endl;
 
 		if (!radiatorCascade.step())
 			com << "Radiator Cascade fail" << endl;
 		if (!boilerCascade.step())
 			com << "Boiler Cascade fail" << endl;
+
+
+		boilerOn = radiatorCascade.getOutput() < (boilerRealStatus ? 50 : -100)
+				|| (heatOutput.get() < radiatorCascade.getTarget() +(boilerRealStatus ? 5 : 0)
+						&& heatOutput.isValid())
+				|| (heatOutput.get() < MinFeedTemp && heatOutput.isValid());
+		if (boilerOn != boilerStatus) {
+			boilerCircles = boilerOn ? bolierDelay : bolierDelayOff;
+			boilerCirclesOn = 0;
+			boilerStatus = boilerOn;
+		}
+		if (boilerCircles != 0)
+			boilerCircles--;
+		else {
+			if (boilerStatus && boilerCirclesOn != 255)
+				boilerCirclesOn++;
+			if (tc.get() < boilerCascade.TCHigh && boilerCirclesOn > bolierRetryDelay)
+				boilerStatus = false; // turn boiler off temporary to trigger burning
+			BOILER_ON::Set(boilerStatus);
+			boilerRealStatus = boilerStatus;
+		}
+		LedOn<Led> l(boilerRealStatus);
+
+		com << "Temp: boiler=" << boilerRealStatus << endl;
 
 		//Clock::clock_t regStart = Clock::millis();
 		int16_t rDelay = radiatorCascade.getAbsOutput();

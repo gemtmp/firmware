@@ -15,22 +15,19 @@
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
+
+
 template <unsigned long baud,
-	uintptr_t _ubrrh = (uintptr_t)&UBRR0H,
-	uintptr_t _ubrrl = (uintptr_t)&UBRR0L,
-	uintptr_t _ucsra = (uintptr_t)&UCSR0A,
-	uintptr_t _ucsrb = (uintptr_t)&UCSR0B,
-	uintptr_t _udr = (uintptr_t)&UDR0,
 	uint8_t _rxen = RXEN0, uint8_t _txen = TXEN0,
 	uint8_t _rxcie = RXCIE0, uint8_t _udre = UDRE0,
     uint8_t _u2x = U2X0>
 class SerialPort
 {
-	volatile uint8_t *ubrrh() { return (uint8_t *) _ubrrh;}
-    volatile uint8_t *ubrrl() { return (uint8_t *) _ubrrl;}
-    volatile uint8_t *ucsra() { return (uint8_t *) _ucsra;}
-    volatile uint8_t *ucsrb() { return (uint8_t *) _ucsrb;}
-    volatile uint8_t *udr() { return (uint8_t *) _udr;}
+	volatile uint8_t *ubrrh() { return &UBRR0H;}
+    volatile uint8_t *ubrrl() { return &UBRR0L;}
+    volatile uint8_t *ucsra() { return &UCSR0A;}
+    volatile uint8_t *ucsrb() { return &UCSR0B;}
+    volatile uint8_t *udr() { return &UDR0;}
 
     const char* digits;
 public:
@@ -82,6 +79,11 @@ public:
 		write(c);
 		return *this;
 	}
+	SerialPort& operator<< (bool b)
+	{
+		write(b ? '1' : '0');
+		return *this;
+	}
 	SerialPort& operator<< (const char* s)
 	{
 		while(*s) write(*(s++));
@@ -127,9 +129,8 @@ public:
 	}
 };
 
-template <unsigned long A0, uintptr_t A1,uintptr_t A2,uintptr_t A3,uintptr_t A4,uintptr_t A5,
- uint8_t A6,uint8_t A7,uint8_t A8,uint8_t A9,uint8_t A10>
-inline SerialPort<A0,A1,A2,A3,A4,A5,A6,A7,A8,A9,A10>& endl(SerialPort<A0,A1,A2,A3,A4,A5,A6,A7,A8,A9,A10>& p)
+template <unsigned long b, uint8_t A6,uint8_t A7,uint8_t A8,uint8_t A9,uint8_t A10>
+inline SerialPort<b,A6,A7,A8,A9,A10>& endl(SerialPort<b,A6,A7,A8,A9,A10>& p)
 {
 	p.write('\r'); p.write('\n');
 	return p;

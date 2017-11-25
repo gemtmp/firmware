@@ -14,6 +14,7 @@ class Temperature
 public:
 
 	Temperature() : value(Error) {}
+	Temperature(int16_t v) : value(v) {}
 	Temperature(uint8_t v, uint8_t frac) : value(v*256 + frac) {}
 	int16_t get() const { return value; }
 	bool isValid() { return value != Error; }
